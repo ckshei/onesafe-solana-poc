@@ -1,0 +1,15 @@
+{
+  "name": "solana-invoice-integration",
+  "version": "1.0.0",
+  "description": "Solana wallet integration with Fireblocks and invoice management",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "axios": "^0.27.2",
+    "dotenv": "^10.0.0",
+    "fireblocks-sdk": "^1.2.0",
+    "@solana/web3.js": "^1.31.0"
+  }
+}
