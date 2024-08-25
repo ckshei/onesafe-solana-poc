@@ -9,6 +9,7 @@ const fireblocks = new FireblocksSDK(apiSecret, process.env.FIREBLOCKS_API_KEY);
 const generateDepositAddress = async (vaultAccountId, assetId) => {
   try {
     const address = await fireblocks.generateDepositAddress(vaultAccountId, assetId);
+    console.log(`Generated deposit address for ${assetId}: ${address}`);
     return address;
   } catch (error) {
     console.error(`Error generating deposit address for ${assetId}:`, error);
@@ -16,52 +17,45 @@ const generateDepositAddress = async (vaultAccountId, assetId) => {
   }
 };
 
-const createTransaction = async (sourceId, destinationId, assetId, amount) => {
+const monitorDeposits = async (vaultAccountId, assetId) => {
   try {
-    const transaction = await fireblocks.createTransaction({
-      source: {
-        type: "VAULT_ACCOUNT",
-        id: sourceId,
-      },
-      destination: {
-        type: "EXTERNAL_WALLET",
-        id: destinationId,
-      },
+    // At some point we need to upgrade this to a webhook 
+    const transactions = await fireblocks.getTransactions({
       assetId: assetId,
-      amount: amount.toString(),
-      operation: "TRANSFER",
+      type: "TRANSFER",
+      status: "COMPLETED"
     });
 
-    return transaction;
+    const deposits = transactions.filter(tx => tx.destination.id === vaultAccountId);
+    if (deposits.length > 0) {
+      console.log(`Detected ${deposits.length} deposits for ${assetId} in vault ${vaultAccountId}`);
+      return deposits;
+    } else {
+      console.log(`No new deposits for ${assetId} in vault ${vaultAccountId}`);
+      return [];
+    }
   } catch (error) {
-    console.error("Error creating transaction:", error);
-    throw error;
-  }
-};
-
-const depositSolana = async (vaultAccountId, amount) => {
-  try {
-    const solanaDepositAddress = await generateDepositAddress(vaultAccountId, "SOL");
-    return await createTransaction(solanaDepositAddress, vaultAccountId, "SOL", amount);
-  } catch (error) {
-    console.error("Error during Solana deposit:", error);
-    throw error;
-  }
-};
-
-const depositUSDCOnSolana = async (vaultAccountId, amount) => {
-  try {
-    const usdcDepositAddress = await generateDepositAddress(vaultAccountId, "USDC_SOLANA");
-    return await createTransaction(usdcDepositAddress, vaultAccountId, "USDC_SOLANA", amount);
-  } catch (error) {
-    console.error("Error during USDC deposit on Solana:", error);
+    console.error(`Error monitoring deposits for ${assetId}:`, error);
     throw error;
   }
 };
 
 const withdrawSolana = async (vaultAccountId, walletAddress, amount) => {
   try {
-    return await createTransaction(vaultAccountId, walletAddress, "SOL", amount);
+    const transaction = await fireblocks.createTransaction({
+      source: {
+        type: "VAULT_ACCOUNT",
+        id: vaultAccountId,
+      },
+      destination: {
+        type: "EXTERNAL_WALLET",
+        id: walletAddress,
+      },
+      assetId: "SOL",
+      amount: amount.toString(),
+      operation: "TRANSFER",
+    });
+    return transaction;
   } catch (error) {
     console.error("Error during Solana withdrawal:", error);
     throw error;
@@ -70,7 +64,20 @@ const withdrawSolana = async (vaultAccountId, walletAddress, amount) => {
 
 const transferSolana = async (fromWalletId, toWalletId, amount) => {
   try {
-    return await createTransaction(fromWalletId, toWalletId, "SOL", amount);
+    const transaction = await fireblocks.createTransaction({
+      source: {
+        type: "VAULT_ACCOUNT",
+        id: fromWalletId,
+      },
+      destination: {
+        type: "VAULT_ACCOUNT",
+        id: toWalletId,
+      },
+      assetId: "SOL",
+      amount: amount.toString(),
+      operation: "TRANSFER",
+    });
+    return transaction;
   } catch (error) {
     console.error("Error during Solana transfer:", error);
     throw error;
@@ -100,8 +107,8 @@ const listAllVaultAssets = async (vaultAccountId) => {
 };
 
 module.exports = { 
-  depositSolana, 
-  depositUSDCOnSolana, 
+  generateDepositAddress,
+  monitorDeposits,
   withdrawSolana, 
   transferSolana, 
   getTransactionStatus, 
